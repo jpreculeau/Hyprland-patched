@@ -1,0 +1,20 @@
+# Components of the packaged stack, built in this order by fork/build-stack.sh.
+# Composants de la pile, compilés dans cet ordre par fork/build-stack.sh.
+# name|git url|ref   ref: a tag, a branch, or "latest" (newest vX.Y.Z tag; for hyprland-plugins:
+# newest tag with the same major.minor as Hyprland) / « latest » : étiquette vX.Y.Z la plus récente
+wayland|https://gitlab.freedesktop.org/wayland/wayland.git|1.26.0
+wayland-protocols|https://gitlab.freedesktop.org/wayland/wayland-protocols.git|1.49
+libinput|https://gitlab.freedesktop.org/libinput/libinput.git|1.32.0
+hyprutils|https://github.com/hyprwm/hyprutils|latest
+hyprlang|https://github.com/hyprwm/hyprlang|latest
+hyprwire|https://github.com/hyprwm/hyprwire|latest
+hyprcursor|https://github.com/hyprwm/hyprcursor|latest
+hyprgraphics|https://github.com/hyprwm/hyprgraphics|latest
+aquamarine|https://github.com/jpreculeau/aquamarine-patched|main
+Hyprland|https://github.com/jpreculeau/Hyprland-patched|main
+hyprland-plugins|https://github.com/hyprwm/hyprland-plugins|latest
+hyprtoolkit|https://github.com/hyprwm/hyprtoolkit|latest
+hyprland-guiutils|https://github.com/hyprwm/hyprland-guiutils|latest
+xdg-desktop-portal-hyprland|https://github.com/hyprwm/xdg-desktop-portal-hyprland|latest
+hyprlock|https://github.com/hyprwm/hyprlock|latest
+hypridle|https://github.com/hyprwm/hypridle|latest

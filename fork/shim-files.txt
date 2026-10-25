@@ -1,0 +1,3 @@
+hyprctl/src/main.cpp
+src/config/shared/parserUtils/ParserUtils.cpp
+src/helpers/MiscFunctions.cpp

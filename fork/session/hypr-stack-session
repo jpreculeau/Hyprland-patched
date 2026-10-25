@@ -1,0 +1,27 @@
+#!/bin/sh
+# Login session for the stack in /opt/hypr-stack (started by the display manager through
+# /usr/share/wayland-sessions/hyprland-stack.desktop).
+# Session de connexion de la pile /opt/hypr-stack (lancée par le gestionnaire de connexion).
+# Config: ~/.config/hypr/hyprland-stack.conf if it exists, else ~/.config/hypr/hyprland.conf.
+# Optional hook run first / crochet optionnel lancé avant : ~/.config/hypr/hypr-stack-pre
+P=/opt/hypr-stack
+export PATH="$P/bin:$PATH"
+# lets the portal drop-in written by install.sh pick this stack's portal / choix du portail
+export HYPR_STACK=1
+systemctl --user set-environment HYPR_STACK=1 2> /dev/null || true
+# another session of this user may follow (Debian's Hyprland): give it Debian's portal back,
+# also when the display manager terminates this script / aussi si ce script est terminé
+trap 'systemctl --user unset-environment HYPR_STACK 2> /dev/null || true' EXIT
+# Hyprland runs in the background so that a TERM or HUP sent to this script reaches it as TERM
+# (start-hyprland stops Hyprland cleanly on TERM, but dies on HUP).
+# Hyprland tourne en arrière-plan : un TERM ou HUP reçu ici lui est relayé en TERM (arrêt propre).
+trap '[ -n "${pid:-}" ] && kill -TERM "$pid" 2> /dev/null; wait "${pid:-}" 2> /dev/null; exit 143' TERM
+trap '[ -n "${pid:-}" ] && kill -TERM "$pid" 2> /dev/null; wait "${pid:-}" 2> /dev/null; exit 129' HUP
+[ -x "$HOME/.config/hypr/hypr-stack-pre" ] && "$HOME/.config/hypr/hypr-stack-pre"
+CONF="$HOME/.config/hypr/hyprland-stack.conf"
+[ -f "$CONF" ] || CONF="$HOME/.config/hypr/hyprland.conf"
+# "&" in a non-interactive shell ignores INT and QUIT in the child (and everything it starts):
+# restore them / « & » ignore INT et QUIT chez l'enfant et tout ce qu'il lance : les rétablir
+env --default-signal=INT,QUIT "$P/bin/start-hyprland" --path "$P/bin/Hyprland" -- -c "$CONF" &
+pid=$!
+wait "$pid"
