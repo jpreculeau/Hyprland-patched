@@ -3,6 +3,7 @@
 #include <hyprutils/cli/Logger.hpp>
 #include <source_location>
 #include <utility>
+#include <vector>
 
 #include "../../helpers/memory/Memory.hpp"
 #include "../../helpers/env/Env.hpp"
@@ -58,12 +59,18 @@ namespace Log {
         const std::string&       rolling();
         Hyprutils::CLI::CLogger& hu();
 
-      private:
-        void                    recheckCfg();
+        // Connections handed to external libraries (e.g. aquamarine) log straight into the
+        // hyprutils logger, bypassing m_logsEnabled. Create them here so they follow debug:disable_logs.
+        SP<Hyprutils::CLI::CLoggerConnection> makeConnection(const std::string_view& name);
 
-        Hyprutils::CLI::CLogger m_logger;
-        bool                    m_logsEnabled = true;
-        bool                    m_isTrace     = false;
+      private:
+        void                                               recheckCfg();
+        void                                               updateConnectionLevels();
+
+        Hyprutils::CLI::CLogger                            m_logger;
+        bool                                               m_logsEnabled = true;
+        bool                                               m_isTrace     = false;
+        std::vector<WP<Hyprutils::CLI::CLoggerConnection>> m_connections;
     };
 
     inline UP<CLogger> logger = makeUnique<CLogger>();
