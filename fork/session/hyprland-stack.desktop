@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=Hyprland (patched)
+Comment=Hyprland-patched stack installed in /opt/hypr-stack
+Exec=/opt/hypr-stack/bin/hypr-stack-session
+Type=Application
+DesktopNames=Hyprland
