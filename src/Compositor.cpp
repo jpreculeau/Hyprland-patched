@@ -300,11 +300,8 @@ void CCompositor::initServer(std::string socketName, int socketFd) {
     // set the buffer size to 1MB to avoid disconnects due to an app hanging for a short while
     wl_display_set_default_max_buffer_size(m_wlDisplay, 1_MB);
 
-    Aquamarine::SBackendOptions           options{};
-    SP<Hyprutils::CLI::CLoggerConnection> conn = makeShared<Hyprutils::CLI::CLoggerConnection>(Log::logger->hu());
-    conn->setLogLevel(Log::DEBUG);
-    conn->setName("aquamarine");
-    options.logConnection = std::move(conn);
+    Aquamarine::SBackendOptions options{};
+    options.logConnection = Log::logger->makeConnection("aquamarine");
 
     std::vector<Aquamarine::SBackendImplementationOptions> implementations;
     Aquamarine::SBackendImplementationOptions              option;

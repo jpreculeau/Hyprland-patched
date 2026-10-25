@@ -48,6 +48,25 @@ void CLogger::recheckCfg() {
     m_logsEnabled = !*PDISABLELOGS;
     m_logger.setTime(!*PDISABLETIME);
     m_logger.setEnableColor(*PENABLECOLOR);
+
+    updateConnectionLevels();
+}
+
+SP<Hyprutils::CLI::CLoggerConnection> CLogger::makeConnection(const std::string_view& name) {
+    auto conn = makeShared<Hyprutils::CLI::CLoggerConnection>(m_logger);
+    conn->setName(name);
+    m_connections.emplace_back(conn);
+    updateConnectionLevels();
+    return conn;
+}
+
+void CLogger::updateConnectionLevels() {
+    std::erase_if(m_connections, [](const auto& c) { return c.expired(); });
+
+    // with debug:disable_logs, only let critical messages from external libraries through
+    for (const auto& c : m_connections) {
+        c->setLogLevel(m_logsEnabled ? Hyprutils::CLI::LOG_DEBUG : Hyprutils::CLI::LOG_CRIT);
+    }
 }
 
 const std::string& CLogger::rolling() {
