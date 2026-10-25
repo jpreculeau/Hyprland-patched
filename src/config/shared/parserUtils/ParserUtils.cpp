@@ -1,3 +1,4 @@
+#include "../../../../fork/gcc14-shim.hpp"
 #include "ParserUtils.hpp"
 
 #include <hyprutils/string/String.hpp>
