@@ -558,6 +558,7 @@ CConfigManager::CConfigManager() {
     m_config->addSpecialConfigValue("device", "keybinds", Hyprlang::INT{1});                 // enable/disable keybinds
     m_config->addSpecialConfigValue("device", "share_states", Hyprlang::INT{0});             // only for virtualkeyboards
     m_config->addSpecialConfigValue("device", "release_pressed_on_close", Hyprlang::INT{0}); // only for virtualkeyboards
+    m_config->addSpecialConfigValue("device", "follow_layout", Hyprlang::INT{0});            // only for virtualkeyboards
     m_config->addSpecialConfigValue("device", "tags", STRVAL_EMPTY);                         // only for keyboards and mice
     m_config->addSpecialConfigValue("device", "eraser_button_mode", Hyprlang::INT{0});       // only for tablettools
     m_config->addSpecialConfigValue("device", "eraser_button_override", Hyprlang::INT{0});   // only for tablettools

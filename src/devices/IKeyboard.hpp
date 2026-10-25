@@ -122,6 +122,8 @@ class IKeyboard : public IHID {
     int                            m_repeatDelay       = 0;
     int                            m_numlockOn         = -1;
     bool                           m_resolveBindsBySym = false;
+    // virtual keyboards only: keep the configured keymap, follow the physical keyboards' layout
+    bool                           m_followLayout = false;
 
     WP<IKeyboard>                  m_self;
 

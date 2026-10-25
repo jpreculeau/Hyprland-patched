@@ -194,6 +194,9 @@ class CInputManager {
     // for virtual keyboards: whether we should respect them as normal ones
     bool        shouldIgnoreVirtualKeyboard(SP<IKeyboard>);
 
+    // follow_layout: layout group of the last used physical keyboard, if valid for this virtual keyboard
+    std::optional<xkb_layout_index_t> followedLayout(SP<IKeyboard> virtualKeyboard);
+
     std::string getNameForNewDevice(std::string);
 
     void        releaseAllMouseButtons();
@@ -217,6 +220,8 @@ class CInputManager {
     bool m_emptyFocusCursorSet = false;
 
   private:
+    WP<IKeyboard> m_lastPhysicalKeyboard;
+
     // Listeners
     struct {
         CHyprSignalListener setCursorShape;

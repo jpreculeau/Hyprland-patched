@@ -2,6 +2,7 @@
 #include "../defines.hpp"
 #include "../protocols/VirtualKeyboard.hpp"
 #include "../config/legacy/ConfigManager.hpp"
+#include "../managers/input/InputManager.hpp"
 #include <wayland-server-protocol.h>
 
 SP<CVirtualKeyboard> CVirtualKeyboard::create(SP<CVirtualKeyboardV1Resource> keeb) {
@@ -26,7 +27,13 @@ CVirtualKeyboard::CVirtualKeyboard(SP<CVirtualKeyboardV1Resource> keeb_) : m_key
         m_keyboardEvents.key.emit(event);
     });
     m_listeners.modifiers = keeb_->m_events.modifiers.listen([this](const SModifiersEvent& event) {
-        updateModifiers(event.depressed, event.latched, event.locked, event.group);
+        auto group = event.group;
+        if (m_followLayout) {
+            // the client's own group (wayvnc: its xkb state) must not flip the layout back and forth
+            if (const auto LAYOUT = g_pInputManager->followedLayout(m_self.lock()); LAYOUT)
+                group = *LAYOUT;
+        }
+        updateModifiers(event.depressed, event.latched, event.locked, group);
         m_keyboardEvents.modifiers.emit(SModifiersEvent{
             .depressed = m_modifiersState.depressed,
             .latched   = m_modifiersState.latched,
@@ -35,6 +42,11 @@ CVirtualKeyboard::CVirtualKeyboard(SP<CVirtualKeyboardV1Resource> keeb_) : m_key
         });
     });
     m_listeners.keymap    = keeb_->m_events.keymap.listen([this](const SKeymapEvent& event) {
+        if (m_followLayout) {
+            // keep the keymap from the config: same layouts as the physical keyboards
+            Log::logger->log(Log::DEBUG, "follow_layout: ignoring the client's keymap for {}", m_deviceName);
+            return;
+        }
         if (m_xkbKeymap)
             xkb_keymap_unref(m_xkbKeymap);
         m_xkbKeymap        = xkb_keymap_ref(event.keymap);

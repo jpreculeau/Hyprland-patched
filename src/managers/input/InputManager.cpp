@@ -1267,6 +1267,11 @@ void CInputManager::applyConfigToKeyboard(SP<IKeyboard> pKeyboard) {
     } else
         pKeyboard->m_allowed = PERM == PERMISSION_RULE_ALLOW_MODE_ALLOW;
 
+    // read before the "did not change" early return below, so a reload toggles it
+    if (pKeyboard->isVirtual())
+        pKeyboard->m_followLayout = HASCONFIG && Config::mgr()->deviceConfigExplicitlySet(devname, "follow_layout") &&
+            Config::mgr()->getDeviceInt(devname, "follow_layout") != 0;
+
     try {
         if (NUMLOCKON == pKeyboard->m_numlockOn && REPEATDELAY == pKeyboard->m_repeatDelay && REPEATRATE == pKeyboard->m_repeatRate && RULES == pKeyboard->m_currentRules.rules &&
             MODEL == pKeyboard->m_currentRules.model && LAYOUT == pKeyboard->m_currentRules.layout && VARIANT == pKeyboard->m_currentRules.variant &&
@@ -1620,6 +1625,16 @@ void CInputManager::onKeyboardKey(const IKeyboard::SKeyEvent& event, SP<IKeyboar
     if (!pKeyboard->m_enabled || !pKeyboard->m_allowed)
         return;
 
+    if (!pKeyboard->isVirtual())
+        m_lastPhysicalKeyboard = pKeyboard;
+    else if (pKeyboard->m_followLayout) {
+        // the physical layout may have changed since the client's last modifiers (bar button, Super+Space):
+        // apply it before the key reaches the client
+        const auto LAYOUT = followedLayout(pKeyboard);
+        if (LAYOUT && *LAYOUT != pKeyboard->m_modifiersState.group)
+            pKeyboard->updateModifiers(pKeyboard->m_modifiersState.depressed, pKeyboard->m_modifiersState.latched, pKeyboard->m_modifiersState.locked, *LAYOUT);
+    }
+
     const bool           DISALLOWACTION = pKeyboard->isVirtual() && shouldIgnoreVirtualKeyboard(pKeyboard);
 
     const auto           IME    = m_relay.m_inputMethod.lock();
@@ -1687,6 +1702,9 @@ void CInputManager::onKeyboardMod(SP<IKeyboard> pKeyboard) {
     if (!pKeyboard->m_enabled)
         return;
 
+    if (!pKeyboard->isVirtual())
+        m_lastPhysicalKeyboard = pKeyboard;
+
     const bool DISALLOWACTION = pKeyboard->isVirtual() && shouldIgnoreVirtualKeyboard(pKeyboard);
 
     const auto IME    = m_relay.m_inputMethod.lock();
@@ -1748,6 +1766,30 @@ bool CInputManager::shouldIgnoreVirtualKeyboard(SP<IKeyboard> pKeyboard) {
         pKeyboard->setShareStatesAuto(false);
 
     return DISALLOWACTION;
+}
+
+std::optional<xkb_layout_index_t> CInputManager::followedLayout(SP<IKeyboard> virtualKeyboard) {
+    auto source = m_lastPhysicalKeyboard.lock();
+
+    if (!source || !source->m_enabled) {
+        source.reset();
+        for (auto const& k : m_keyboards) {
+            if (k && !k->isVirtual() && k->m_enabled) {
+                source = k;
+                break;
+            }
+        }
+    }
+
+    if (!source || !virtualKeyboard || !virtualKeyboard->m_xkbKeymap)
+        return std::nullopt;
+
+    // a per-device rule may give the virtual keyboard fewer layouts: leave it alone then
+    const xkb_layout_index_t LAYOUT = source->m_modifiersState.group;
+    if (LAYOUT >= xkb_keymap_num_layouts(virtualKeyboard->m_xkbKeymap))
+        return std::nullopt;
+
+    return LAYOUT;
 }
 
 void CInputManager::refocus(std::optional<Vector2D> overridePos) {
