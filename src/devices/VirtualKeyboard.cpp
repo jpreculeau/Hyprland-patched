@@ -1,7 +1,7 @@
 #include "VirtualKeyboard.hpp"
 #include "../defines.hpp"
 #include "../protocols/VirtualKeyboard.hpp"
-#include "../config/legacy/ConfigManager.hpp"
+#include "../config/ConfigManager.hpp"
 #include <wayland-server-protocol.h>
 
 SP<CVirtualKeyboard> CVirtualKeyboard::create(SP<CVirtualKeyboardV1Resource> keeb) {
@@ -51,7 +51,7 @@ CVirtualKeyboard::CVirtualKeyboard(SP<CVirtualKeyboardV1Resource> keeb_) : m_key
     m_shareStatesAuto      = SHARESTATES == 2;
 }
 
-bool CVirtualKeyboard::isVirtual() {
+bool CVirtualKeyboard::isVirtual() const {
     return true;
 }
 

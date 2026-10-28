@@ -41,17 +41,17 @@ const SStripData& CScrollTapeController::getStrip(size_t index) const {
 void CScrollTapeController::setOffset(double offset) {
     if (getScrollInhibitor().isInhibited) {
         m_offset = getScrollInhibitor().offsetWhenInhibited;
-        Log::logger->log(Log::DEBUG, "m_offset not set - scrolling inhibited");
+        LOG(Log::DEBUG, "m_offset not set - scrolling inhibited");
     } else
         m_offset = offset;
 }
 
-double CScrollTapeController::getOffset() const {
-    return m_offset;
+void CScrollTapeController::adjustOffset(double delta) {
+    setOffset(m_offset + delta);
 }
 
-void CScrollTapeController::adjustOffset(double delta) {
-    m_offset += delta;
+double CScrollTapeController::getOffset() const {
+    return m_offset;
 }
 
 struct SScrollInhibitor& CScrollTapeController::getScrollInhibitor() {

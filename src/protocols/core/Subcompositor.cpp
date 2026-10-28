@@ -10,7 +10,10 @@ CWLSubsurfaceResource::CWLSubsurfaceResource(SP<CWlSubsurface> resource_, SP<CWL
     m_resource->setOnDestroy([this](CWlSubsurface* r) { destroy(); });
     m_resource->setDestroy([this](CWlSubsurface* r) { destroy(); });
 
-    m_resource->setSetPosition([this](CWlSubsurface* r, int32_t x, int32_t y) { m_position = {x, y}; });
+    m_resource->setSetPosition([this](CWlSubsurface* r, int32_t x, int32_t y) {
+        m_position = {x, y};
+        markPlacementPending();
+    });
 
     m_resource->setSetDesync([this](CWlSubsurface* r) { m_sync = false; });
     m_resource->setSetSync([this](CWlSubsurface* r) { m_sync = true; });
@@ -29,7 +32,7 @@ CWLSubsurfaceResource::CWLSubsurfaceResource(SP<CWlSubsurface> resource_, SP<CWL
 
         if ((it == m_parent->m_subsurfaces.end() && m_parent != SURF) || SURF == m_surface) {
             // protocol error, this is not a valid surface
-            r->error(-1, "Invalid surface in placeAbove");
+            r->error(WL_SUBSURFACE_ERROR_BAD_SURFACE, "Invalid surface in placeAbove");
             return;
         }
 
@@ -43,6 +46,7 @@ CWLSubsurfaceResource::CWLSubsurfaceResource(SP<CWlSubsurface> resource_, SP<CWL
         }
 
         m_parent->sortSubsurfaces();
+        markPlacementPending();
     });
 
     m_resource->setPlaceBelow([this](CWlSubsurface* r, wl_resource* surf) {
@@ -59,7 +63,7 @@ CWLSubsurfaceResource::CWLSubsurfaceResource(SP<CWlSubsurface> resource_, SP<CWL
 
         if ((it == m_parent->m_subsurfaces.end() && m_parent != SURF) || SURF == m_surface) {
             // protocol error, this is not a valid surface
-            r->error(-1, "Invalid surface in placeBelow");
+            r->error(WL_SUBSURFACE_ERROR_BAD_SURFACE, "Invalid surface in placeBelow");
             return;
         }
 
@@ -73,6 +77,7 @@ CWLSubsurfaceResource::CWLSubsurfaceResource(SP<CWlSubsurface> resource_, SP<CWL
         }
 
         m_parent->sortSubsurfaces();
+        markPlacementPending();
     });
 
     m_listeners.commitSurface = m_surface->m_events.commit.listen([this] {
@@ -106,6 +111,11 @@ void CWLSubsurfaceResource::destroy() {
     }
     m_events.destroy.emit();
     PROTO::subcompositor->destroyResource(this);
+}
+
+void CWLSubsurfaceResource::markPlacementPending() {
+    if (m_parent)
+        m_parent->m_pending.updated.bits.subsurfacePlacement = true;
 }
 
 void CWLSubsurfaceResource::unlinkFromParent() {
@@ -161,13 +171,19 @@ CWLSubcompositorResource::CWLSubcompositorResource(SP<CWlSubcompositor> resource
         auto SURF   = CWLSurfaceResource::fromResource(surface);
         auto PARENT = CWLSurfaceResource::fromResource(parent);
 
-        if UNLIKELY (!SURF || !PARENT || SURF == PARENT) {
+        if UNLIKELY (!SURF || !PARENT) {
             r->error(WL_SUBCOMPOSITOR_ERROR_BAD_SURFACE, "Invalid surface/parent");
             return;
         }
 
+        // the parent must be different from the child surface, otherwise bad_parent is raised (wl_subcompositor spec)
+        if UNLIKELY (SURF == PARENT) {
+            r->error(WL_SUBCOMPOSITOR_ERROR_BAD_PARENT, "Parent surface must be different from the child surface");
+            return;
+        }
+
         if UNLIKELY (SURF->m_role->role() != SURFACE_ROLE_UNASSIGNED) {
-            r->error(-1, "Surface already has a different role");
+            r->error(WL_SUBCOMPOSITOR_ERROR_BAD_SURFACE, "Surface already has a different role");
             return;
         }
 
@@ -197,7 +213,7 @@ CWLSubcompositorResource::CWLSubcompositorResource(SP<CWlSubcompositor> resource
         SURF->m_role     = makeShared<CSubsurfaceRole>(RESOURCE);
         PARENT->m_subsurfaces.emplace_back(RESOURCE);
 
-        LOGM(Log::DEBUG, "New wl_subsurface with id {} at {:x}", id, (uintptr_t)RESOURCE.get());
+        LOG(Log::DEBUG, "New wl_subsurface with id {} at {:x}", id, (uintptr_t)RESOURCE.get());
 
         PARENT->m_events.newSubsurface.emit(RESOURCE);
     });

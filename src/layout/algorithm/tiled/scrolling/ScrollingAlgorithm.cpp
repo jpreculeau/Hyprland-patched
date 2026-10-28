@@ -1,9 +1,13 @@
 #include "ScrollingAlgorithm.hpp"
+#include "../../../../helpers/MiscFunctions.hpp"
+#include "../../../../desktop/view/window/WindowGroupMembership.hpp"
+#include "../../../../desktop/view/window/WindowPresentation.hpp"
 #include "ScrollTapeController.hpp"
 
 #include "../../Algorithm.hpp"
 #include "../../../space/Space.hpp"
 #include "../../../LayoutManager.hpp"
+#include "../../../target/WindowTarget.hpp"
 
 #include "../../../../Compositor.hpp"
 #include "../../../../desktop/state/FocusState.hpp"
@@ -448,9 +452,14 @@ void SScrollingData::recalculate(bool forceInstant) {
     auto* const       PGAPSIN       = sc<Config::CCssGapData*>((PGAPSINDATA.ptr()));
     const auto        GAPSIN        = (WORKSPACERULE && WORKSPACERULE->m_gapsIn.has_value()) ? WORKSPACERULE->m_gapsIn.value() : *PGAPSIN;
 
-    if (const auto FULLSCREEN_WINDOW = Fullscreen::controller()->getFullscreenWindow(WORKSPACE);
+    // If there is a default covering fullscreen window (tiled or floating)
+    if (const auto FULLSCREEN_WINDOW = Fullscreen::controller()->getFullscreenWindow(WORKSPACE, true);
         FULLSCREEN_WINDOW && !Fullscreen::controller()->layoutManagedFS(FULLSCREEN_WINDOW)) {
+
+        // This will function the same way as m_defaultFullscreenHandler's setNoMembersAboveFullscreen() function call
         algorithm->m_scrollingFullscreenHandler->setNoMembersAboveFullscreen();
+        // This will sync the size of the FS window
+        algorithm->m_defaultFullscreenHandler->syncTargetSizeAndPosition();
         return;
     }
 
@@ -463,15 +472,13 @@ void SScrollingData::recalculate(bool forceInstant) {
         CBox       visual        = logical;
         const bool PRIMARY_HORIZ = controller->isPrimaryHorizontal();
 
-        const bool COL_NOT_LEFT      = controller->isReversed() ? colIdx + 1 < columns.size() : colIdx > 0;
-        const bool COL_NOT_RIGHT     = controller->isReversed() ? colIdx > 0 : colIdx + 1 < columns.size();
         const bool TARGET_NOT_TOP    = controller->isReversed() ? targetIdx + 1 < columns[colIdx]->targetDatas.size() : targetIdx > 0;
         const bool TARGET_NOT_BOTTOM = controller->isReversed() ? targetIdx > 0 : targetIdx + 1 < columns[colIdx]->targetDatas.size();
 
-        const bool GAP_LEFT   = PRIMARY_HORIZ ? COL_NOT_LEFT : TARGET_NOT_TOP;
-        const bool GAP_RIGHT  = PRIMARY_HORIZ ? COL_NOT_RIGHT : TARGET_NOT_BOTTOM;
-        const bool GAP_TOP    = PRIMARY_HORIZ ? TARGET_NOT_TOP : COL_NOT_LEFT;
-        const bool GAP_BOTTOM = PRIMARY_HORIZ ? TARGET_NOT_BOTTOM : COL_NOT_RIGHT;
+        const bool GAP_LEFT   = PRIMARY_HORIZ || TARGET_NOT_TOP;
+        const bool GAP_RIGHT  = PRIMARY_HORIZ || TARGET_NOT_BOTTOM;
+        const bool GAP_TOP    = !PRIMARY_HORIZ || TARGET_NOT_TOP;
+        const bool GAP_BOTTOM = !PRIMARY_HORIZ || TARGET_NOT_BOTTOM;
 
         const auto GAPOFFSETTOPLEFT     = Vector2D(sc<double>(GAP_LEFT ? GAPSIN.m_left : 0), sc<double>(GAP_TOP ? GAPSIN.m_top : 0));
         const auto GAPOFFSETBOTTOMRIGHT = Vector2D(sc<double>(GAP_RIGHT ? GAPSIN.m_right : 0), sc<double>(GAP_BOTTOM ? GAPSIN.m_bottom : 0));
@@ -484,9 +491,7 @@ void SScrollingData::recalculate(bool forceInstant) {
         return {.logicalBox = logical, .visualBox = visual};
     };
 
-    bool                     targetWorkspaceHasCoveringFullscreen = false;
-
-    SP<SScrollingTargetData> currentFsTdata = nullptr;
+    SP<SScrollingTargetData> currentCoveringFsTdata = nullptr;
 
     for (size_t i = 0; i < columns.size(); ++i) {
         const auto& COL = columns[i];
@@ -505,10 +510,9 @@ void SScrollingData::recalculate(bool forceInstant) {
                 if (TARGET_FS_MODE == Fullscreen::FSMODE_FULLSCREEN) {
                     // Target is Covering Fullscreen
                     if (algorithm->m_scrollingFullscreenHandler->isFullscreen(TARGET, Fullscreen::FSMODE_FULLSCREEN, true)) {
-                        TDATA->layoutBox                     = MONBOX;
-                        currentFsTdata                       = TDATA;
-                        targetWorkspaceHasCoveringFullscreen = true;
-                        targetIsCoveringFullscreen           = true;
+                        TDATA->layoutBox           = MONBOX;
+                        currentCoveringFsTdata     = TDATA;
+                        targetIsCoveringFullscreen = true;
                     }
                     // Target is non-covering fullscreen
                     else {
@@ -524,10 +528,9 @@ void SScrollingData::recalculate(bool forceInstant) {
                 } else if (TARGET_FS_MODE == Fullscreen::FSMODE_MAXIMIZED) {
                     // Target is Covering Maximised
                     if (algorithm->m_scrollingFullscreenHandler->isFullscreen(TARGET, Fullscreen::FSMODE_MAXIMIZED, true)) {
-                        TDATA->layoutBox                     = WORKAREA;
-                        currentFsTdata                       = TDATA;
-                        targetWorkspaceHasCoveringFullscreen = true;
-                        targetIsCoveringFullscreen           = true;
+                        TDATA->layoutBox           = WORKAREA;
+                        currentCoveringFsTdata     = TDATA;
+                        targetIsCoveringFullscreen = true;
                     }
                     // Target is non-covering Maximied
                     else {
@@ -552,6 +555,7 @@ void SScrollingData::recalculate(bool forceInstant) {
                     Fullscreen::controller()->m_windowPosSettingQueued = true;
                 // must set pos of the highest level target (i.e. if target a part of a group, must set that group's pos which will set the pos of all member targets)
                 TDATA->target->setPositionGlobal(targetBoxWithGaps(TDATA->layoutBox, i, j, COL_HAS_FS_TARGET && TARGET_FS_MODE == Fullscreen::FSMODE_FULLSCREEN));
+                Fullscreen::controller()->m_windowPosSettingQueued = false;
             }
 
             if (forceInstant && TDATA->target)
@@ -559,7 +563,8 @@ void SScrollingData::recalculate(bool forceInstant) {
         }
     }
 
-    algorithm->m_scrollingFullscreenHandler->sScrollingDataRecalculateHelper(currentFsTdata, MONITOR, targetWorkspaceHasCoveringFullscreen);
+    // Handles covering FS's setting pos , warp pos and size, and more
+    algorithm->m_scrollingFullscreenHandler->sScrollingDataRecalculateHelper(currentCoveringFsTdata, MONITOR);
 }
 
 double SScrollingData::maxWidth() {
@@ -595,7 +600,7 @@ CScrollingAlgorithm::CScrollingAlgorithm() : m_scrollingFullscreenHandler(makeUn
         for (auto& w : widths) {
             try {
                 widthVec.emplace_back(std::clamp(std::stof(std::string{w}), MIN_COLUMN_WIDTH, MAX_COLUMN_WIDTH));
-            } catch (...) { Log::logger->log(Log::ERR, "scrolling: Failed to parse width {} as float", w); }
+            } catch (...) { LOG(Log::ERR, "scrolling: Failed to parse width {} as float", w); }
         }
         if (widthVec.empty())
             widthVec = {0.333, 0.5, 0.667, 1.0}; // default
@@ -627,8 +632,9 @@ CScrollingAlgorithm::CScrollingAlgorithm() : m_scrollingFullscreenHandler(makeUn
     m_mouseButtonCallback = Event::bus()->m_events.input.mouse.button.listen([this](IPointer::SButtonEvent e, Event::SCallbackInfo&) {
         static const auto PFOLLOW_FOCUS = CConfigValue<Config::INTEGER>("scrolling:follow_focus");
 
+        // click-down shouldn't cause viewport moves
         if (*PFOLLOW_FOCUS && e.state == WL_POINTER_BUTTON_STATE_RELEASED && Desktop::focusState()->window())
-            focusOnInput(Desktop::focusState()->window()->layoutTarget(), INPUT_MODE_CLICK);
+            focusOnInput(Desktop::focusState()->window()->layoutTarget(), (*PFOLLOW_FOCUS == 1) ? INPUT_MODE_CLICK : INPUT_MODE_SOFT);
     });
 
     m_focusCallback = Event::bus()->m_events.window.active.listen([this](PHLWINDOW pWindow, Desktop::eFocusReason reason) {
@@ -647,6 +653,10 @@ CScrollingAlgorithm::CScrollingAlgorithm() : m_scrollingFullscreenHandler(makeUn
         if (!TARGET || TARGET->floating())
             return;
 
+        // only FOCUS_REASON_CLICK_UP is allowed to move view in scrolling. Focus is still allowed to change on DOWN
+        if (reason == Desktop::FOCUS_REASON_CLICK_DOWN)
+            return;
+
         // if follow_focus != 0, focuswindow always moves scrolling view
         // if follow_focus != 0, change in a group's current window state always moves scrolling view
         // if follow_focus != 0, moving a window into group via the corresponding dispatches `moveintogroup`, `movewindoworgroup` always moves scrolling view
@@ -656,7 +666,7 @@ CScrollingAlgorithm::CScrollingAlgorithm() : m_scrollingFullscreenHandler(makeUn
              reason == Desktop::FOCUS_REASON_DISPATCH_MOVEWINDOWINTOGROUP || reason == Desktop::FOCUS_REASON_SWITCH_TO_WINDOW_SOFT))
             focusOnInput(TARGET, INPUT_MODE_HARD);
         else
-            focusOnInput(TARGET, reason == Desktop::FOCUS_REASON_CLICK ? INPUT_MODE_CLICK : (Desktop::isHardInputFocusReason(reason) ? INPUT_MODE_HARD : INPUT_MODE_SOFT));
+            focusOnInput(TARGET, reason == Desktop::FOCUS_REASON_CLICK_UP ? INPUT_MODE_CLICK : (Desktop::isHardInputFocusReason(reason) ? INPUT_MODE_HARD : INPUT_MODE_SOFT));
     });
 
     // Initialize default widths and direction
@@ -697,7 +707,7 @@ void CScrollingAlgorithm::focusOnInput(SP<ITarget> target, eInputMode input) {
     }
 
     // if click, but target is not under cursor, ignore
-    if (input == INPUT_MODE_CLICK && !Pointer::mgr()->getCursorBoxGlobal().overlaps(target->position()))
+    if ((input & INPUT_MODE_CLICK) && !Pointer::mgr()->getCursorBoxGlobal().overlaps(target->position()))
         return;
 
     // if we moved via non-kb, and it's fully visible, ignore
@@ -822,7 +832,7 @@ void CScrollingAlgorithm::resizeTarget(const Vector2D& delta, SP<ITarget> target
         PWINDOW->resize((PWINDOW->size(Desktop::View::IGeometric::GEOMETRIC_GOAL) + delta)
                             .clamp(PWINDOW->m_ruleApplicator->minSize().valueOr(Vector2D{MIN_WINDOW_SIZE, MIN_WINDOW_SIZE}),
                                    PWINDOW->m_ruleApplicator->maxSize().valueOr(Vector2D{INFINITY, INFINITY})));
-        PWINDOW->updateWindowDecos();
+        PWINDOW->presentation().updateDecorations();
         return;
     }
 
@@ -1126,7 +1136,7 @@ void CScrollingAlgorithm::moveTargetTo(SP<ITarget> t, Math::eDirection dir, bool
 
         const auto MONINDIR = State::monitorState()->query().relativeTo(m_parent->space()->workspace()->m_monitor.lock()).inDirection(dir).run();
         if (MONINDIR && MONINDIR != m_parent->space()->workspace()->m_monitor && MONINDIR->m_activeWorkspace) {
-            t->assignToSpace(MONINDIR->m_activeWorkspace->m_space, focalPointForDir(t, dir));
+            t->assignToSpace(MONINDIR->m_activeWorkspace->space(), focalPointForDir(t, dir));
 
             m_scrollingData->recalculate();
 
@@ -1918,10 +1928,10 @@ SP<SScrollingTargetData> CScrollingAlgorithm::dataFor(SP<ITarget> t, bool stepIn
 
                 // if tracked target data is a group, search the contents of the group for the target
                 if (TARGET->type() == TARGET_TYPE_GROUP && TARGET->window()) {
-                    const auto WINDOW_GROUP = TARGET->window()->m_group;
+                    const auto WINDOW_GROUP = TARGET->window()->grouping().group();
                     if (WINDOW_GROUP) {
                         for (const auto& window : WINDOW_GROUP->windows()) {
-                            if (window->m_target == t)
+                            if (window->windowTarget() == t)
                                 return SCROLLING_DATA;
                         }
                     }
@@ -1985,13 +1995,13 @@ void CScrollingAlgorithm::inhibitScroll() {
     m_scrollingData->controller->getScrollInhibitor().offsetWhenInhibited = m_scrollingData->controller->getOffset();
     m_scrollingData->controller->getScrollInhibitor().isInhibited         = true;
 
-    Log::logger->log(Log::INFO, "Scrolling inhibited");
+    LOG(Log::INFO, "Scrolling inhibited");
 }
 
 void CScrollingAlgorithm::uninhibitScroll() {
     m_scrollingData->controller->getScrollInhibitor().isInhibited = false;
 
-    Log::logger->log(Log::INFO, "Scrolling uninhibited");
+    LOG(Log::INFO, "Scrolling uninhibited");
 }
 
 float CScrollingAlgorithm::defaultColumnWidth() {

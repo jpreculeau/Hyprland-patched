@@ -4,7 +4,7 @@
 #include "../algorithm/Algorithm.hpp"
 
 #include "../../debug/log/Logger.hpp"
-#include "../../desktop/Workspace.hpp"
+#include "../../workspace/HLWorkspace.hpp"
 #include "../../config/shared/workspace/WorkspaceRuleManager.hpp"
 #include "../../config/ConfigValue.hpp"
 #include "../../event/EventBus.hpp"
@@ -76,7 +76,7 @@ void CSpace::setAlgorithmProvider(SP<CAlgorithm> algo) {
 
 void CSpace::recheckWorkArea() {
     if (!m_parent || !m_parent->m_monitor) {
-        Log::logger->log(Log::ERR, "CSpace: recheckWorkArea on no parent / mon?!");
+        LOG(Log::ERR, "CSpace: recheckWorkArea on no parent / mon?!");
         return;
     }
 

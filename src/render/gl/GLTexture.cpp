@@ -14,7 +14,7 @@ CGLTexture::CGLTexture(bool opaque) {
 }
 
 CGLTexture::~CGLTexture() {
-    if (!g_pCompositor || g_pCompositor->m_isShuttingDown || !g_pHyprRenderer)
+    if (!g_pCompositor || g_pCompositor->m_isShuttingDown || !g_pHyprRenderer || !g_pHyprOpenGL)
         return;
 
     g_pHyprOpenGL->makeEGLCurrent();
@@ -68,7 +68,7 @@ CGLTexture::CGLTexture(uint32_t drmFormat, uint8_t* pixels, uint32_t stride, con
 CGLTexture::CGLTexture(const Aquamarine::SDMABUFAttrs& attrs, void* image, bool opaque) {
     m_opaque = opaque;
     if (!g_pHyprOpenGL->m_proc.glEGLImageTargetTexture2DOES) {
-        Log::logger->log(Log::ERR, "Cannot create a dmabuf texture: no glEGLImageTargetTexture2DOES");
+        LOG(Log::ERR, "Cannot create a dmabuf texture: no glEGLImageTargetTexture2DOES");
         return;
     }
 

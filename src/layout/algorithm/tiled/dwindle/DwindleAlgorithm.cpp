@@ -1,4 +1,6 @@
 #include "DwindleAlgorithm.hpp"
+#include "../../../../helpers/MiscFunctions.hpp"
+#include "../../../../desktop/view/window/WindowPresentation.hpp"
 
 #include "../../Algorithm.hpp"
 #include "../../../space/Space.hpp"
@@ -83,7 +85,7 @@ void CDwindleAlgorithm::addTarget(SP<ITarget> target) {
     const auto           MOUSECOORDS = m_overrideFocalPoint.value_or(g_pInputManager->getMouseCoordsInternal());
     const auto           ACTIVE_MON  = Desktop::focusState()->monitor();
 
-    if ((PWORKSPACE == ACTIVE_MON->m_activeWorkspace || (PWORKSPACE->m_isSpecialWorkspace && PMONITOR->m_activeSpecialWorkspace)) && !*PUSEACTIVE) {
+    if ((PWORKSPACE == ACTIVE_MON->m_activeWorkspace || (PWORKSPACE->type() == Workspace::eWorkspaceType::SPECIAL && PMONITOR->m_activeSpecialWorkspace)) && !*PUSEACTIVE) {
         OPENINGON = getNodeFromWindow(
             Desktop::viewState()->hitTest().windowAt(MOUSECOORDS, Desktop::View::RESERVED_EXTENTS | Desktop::View::INPUT_EXTENTS | Desktop::View::SKIP_FULLSCREEN_PRIORITY));
 
@@ -95,8 +97,8 @@ void CDwindleAlgorithm::addTarget(SP<ITarget> target) {
 
         if (m_overrideFocalPoint)
             OPENINGON = getClosestNode(*m_overrideFocalPoint);
-        else if (!m_overrideFocalPoint && ACTIVE_WINDOW && !ACTIVE_WINDOW->m_isFloating && ACTIVE_WINDOW != target->window() && ACTIVE_WINDOW->m_workspace == PWORKSPACE &&
-                 ACTIVE_WINDOW->m_isMapped)
+        else if (!m_overrideFocalPoint && ACTIVE_WINDOW && !ACTIVE_WINDOW->isFloating() && ACTIVE_WINDOW != target->window() && ACTIVE_WINDOW->m_workspace == PWORKSPACE &&
+                 ACTIVE_WINDOW->mapped())
             OPENINGON = getNodeFromWindow(ACTIVE_WINDOW);
 
         if (!OPENINGON)
@@ -270,7 +272,7 @@ void CDwindleAlgorithm::removeTarget(SP<ITarget> target) {
     const auto PNODE = getNodeFromTarget(target);
 
     if (!PNODE) {
-        Log::logger->log(Log::ERR, "onWindowRemovedTiling node null?");
+        LOG(Log::ERR, "onWindowRemovedTiling node null?");
         return;
     }
 
@@ -282,7 +284,7 @@ void CDwindleAlgorithm::removeTarget(SP<ITarget> target) {
     const auto PPARENT = PNODE->pParent;
 
     if (!PPARENT) {
-        Log::logger->log(Log::DEBUG, "Removing last node (dwindle)");
+        LOG(Log::DEBUG, "Removing last node (dwindle)");
         std::erase(m_dwindleNodesData, PNODE);
         return;
     }
@@ -585,13 +587,13 @@ void CDwindleAlgorithm::moveTargetInDirection(SP<ITarget> t, Math::eDirection di
         }
     }
 
-    t->window()->setAnimationsToMove();
+    t->window()->presentation().setAnimationsToMove();
 
     if (PMONITORFOCAL != m_parent->space()->workspace()->m_monitor) {
         // move with a focal point
 
         if (PMONITORFOCAL->m_activeWorkspace)
-            t->assignToSpace(PMONITORFOCAL->m_activeWorkspace->m_space, FOCAL_POINT);
+            t->assignToSpace(PMONITORFOCAL->m_activeWorkspace->space(), FOCAL_POINT);
 
         return;
     }
@@ -693,7 +695,7 @@ Config::ErrorResult CDwindleAlgorithm::layoutMsg(const std::string_view& sv) {
                 try {
                     angle = std::stoi(std::string{ARGS[1]});
                 } catch (const std::exception& e) {
-                    Log::logger->log(Log::WARN, "Invalid angle argument for rotatesplit: {}", ARGS[1]);
+                    LOG(Log::WARN, "Invalid angle argument for rotatesplit: {}", ARGS[1]);
                     return Config::configError("Invalid angle argument", Config::eConfigErrorLevel::ERROR, Config::eConfigErrorCode::INVALID_ARGUMENT);
                 }
             }
@@ -714,7 +716,7 @@ Config::ErrorResult CDwindleAlgorithm::layoutMsg(const std::string_view& sv) {
         auto direction = ARGS[1];
 
         if (direction.empty()) {
-            Log::logger->log(Log::ERR, "Expected direction for preselect");
+            LOG(Log::ERR, "Expected direction for preselect");
             return Config::configError("No direction for preselect", Config::eConfigErrorLevel::ERROR, Config::eConfigErrorCode::INVALID_ARGUMENT);
         }
 

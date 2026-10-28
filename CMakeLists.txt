@@ -109,10 +109,8 @@ add_compile_options(
   -Wno-unused-parameter
   -Wno-unused-value
   -Wno-missing-field-initializers
-  -Wno-gnu-zero-variadic-macro-arguments
   -Wno-narrowing
   -Wno-pointer-arith
-  -Wno-clobbered
   -frtti
   -fmacro-prefix-map=${CMAKE_SOURCE_DIR}/=)
 
@@ -130,24 +128,26 @@ set(GLES_VERSION "GLES3")
 find_package(OpenGL REQUIRED COMPONENTS ${GLES_VERSION})
 find_package(glslang CONFIG REQUIRED)
 
-find_package(glaze 7...<8 QUIET)
-if(NOT glaze_FOUND)
-  set(GLAZE_VERSION v7.2.0)
-  message(STATUS "glaze dependency not found, retrieving ${GLAZE_VERSION} with FetchContent")
-  include(FetchContent)
-  FetchContent_Declare(
-    glaze
-    GIT_REPOSITORY https://github.com/stephenberry/glaze.git
-    GIT_TAG ${GLAZE_VERSION}
-    GIT_SHALLOW TRUE
-    EXCLUDE_FROM_ALL)
-  FetchContent_MakeAvailable(glaze)
+find_package(glaze QUIET)
+if(NOT CMAKE_SYSTEM_NAME MATCHES "OpenBSD")
+  if(NOT glaze_FOUND)
+    set(GLAZE_VERSION v7.2.0)
+    message(STATUS "glaze dependency not found, retrieving ${GLAZE_VERSION} with FetchContent")
+    include(FetchContent)
+    FetchContent_Declare(
+      glaze
+      GIT_REPOSITORY https://github.com/stephenberry/glaze.git
+      GIT_TAG ${GLAZE_VERSION}
+      GIT_SHALLOW TRUE
+      EXCLUDE_FROM_ALL)
+    FetchContent_MakeAvailable(glaze)
+  endif()
 endif()
 
-set(AQUAMARINE_MINIMUM_VERSION 0.9.3)
+set(AQUAMARINE_MINIMUM_VERSION 0.15.0)
 set(HYPRLANG_MINIMUM_VERSION 0.6.7)
 set(HYPRCURSOR_MINIMUM_VERSION 0.1.7)
-set(HYPRUTILS_MINIMUM_VERSION 0.14.0)
+set(HYPRUTILS_MINIMUM_VERSION 0.14.3)
 set(HYPRGRAPHICS_MINIMUM_VERSION 0.5.1)
 
 pkg_check_modules(aquamarine_dep REQUIRED IMPORTED_TARGET aquamarine>=${AQUAMARINE_MINIMUM_VERSION})
@@ -286,6 +286,7 @@ pkg_check_modules(deps
   re2
   muparser
   lcms2
+  libcanberra
 )
 
 pkg_search_module(LUA REQUIRED IMPORTED_TARGET GLOBAL lua55 lua5.5 lua-55 lua-5.5 lua>=5.5 lua<5.6)
@@ -375,6 +376,15 @@ if(NOT HAS_INOTIFY AND inotify_FOUND)
   target_link_libraries(hyprland_lib PUBLIC PkgConfig::inotify)
 endif()
 
+# sdbus-c++ is used to ask rtkit for realtime scheduling which is Linux-only
+if(NO_RTKIT OR NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  message(STATUS "rtkit realtime scheduling is disabled!")
+else()
+  pkg_check_modules(sdbus_dep REQUIRED IMPORTED_TARGET sdbus-c++>=2.0.0)
+  target_link_libraries(hyprland_lib PUBLIC PkgConfig::sdbus_dep)
+  add_compile_definitions(HAS_RTKIT)
+endif()
+
 if(NO_XWAYLAND)
   message(STATUS "Using the NO_XWAYLAND flag, disabling XWayland!")
   add_compile_definitions(NO_XWAYLAND)
@@ -408,6 +418,9 @@ if(NO_SYSTEMD)
 else()
   message(STATUS "SYSTEMD support is requested (NO_SYSTEMD not defined)...")
   add_compile_definitions(USES_SYSTEMD)
+
+  install(FILES ${CMAKE_SOURCE_DIR}/systemd/hyprland-session.target
+          DESTINATION ${CMAKE_INSTALL_LIBDIR}/systemd/user)
 
   # session file -uwsm
   if(NO_UWSM)
@@ -529,14 +542,9 @@ else()
   target_link_libraries(hyprland_lib PUBLIC OpenGL::EGL OpenGL::GLES3 glslang::glslang glslang::glslang-default-resource-limits glslang::SPIRV Threads::Threads)
 endif()
 
-pkg_check_modules(hyprland_protocols_dep hyprland-protocols>=0.7.0)
-if(hyprland_protocols_dep_FOUND)
-  pkg_get_variable(HYPRLAND_PROTOCOLS hyprland-protocols pkgdatadir)
-  message(STATUS "hyprland-protocols dependency set to ${HYPRLAND_PROTOCOLS}")
-else()
-  set(HYPRLAND_PROTOCOLS "subprojects/hyprland-protocols")
-  message(STATUS "hyprland-protocols subproject set to ${HYPRLAND_PROTOCOLS}")
-endif()
+pkg_check_modules(hyprland_protocols_dep REQUIRED hyprland-protocols>=0.8.0)
+pkg_get_variable(HYPRLAND_PROTOCOLS hyprland-protocols pkgdatadir)
+message(STATUS "hyprland-protocols dependency set to ${HYPRLAND_PROTOCOLS}")
 
 protocolnew("${HYPRLAND_PROTOCOLS}/protocols" "hyprland-global-shortcuts-v1"
             true)
@@ -553,6 +561,7 @@ protocolnew("protocols" "input-method-unstable-v2" true)
 protocolnew("protocols" "wlr-output-management-unstable-v1" true)
 protocolnew("protocols" "kde-server-decoration" true)
 protocolnew("protocols" "vicinae-hotkey-v1" true)
+protocolnew("protocols" "xx-hotkey-v1" true)
 protocolnew("protocols" "wlr-data-control-unstable-v1" true)
 protocolnew("${HYPRLAND_PROTOCOLS}/protocols" "hyprland-focus-grab-v1" true)
 protocolnew("protocols" "wlr-layer-shell-unstable-v1" true)
@@ -560,8 +569,8 @@ protocolnew("protocols" "wayland-drm" true)
 protocolnew("${HYPRLAND_PROTOCOLS}/protocols" "hyprland-ctm-control-v1" true)
 protocolnew("${HYPRLAND_PROTOCOLS}/protocols" "hyprland-surface-v1" true)
 protocolnew("${HYPRLAND_PROTOCOLS}/protocols" "hyprland-lock-notify-v1" true)
-protocolnew("${HYPRLAND_PROTOCOLS}/protocols" "hyprland-toplevel-mapping-v1"
-            true)
+protocolnew("${HYPRLAND_PROTOCOLS}/protocols" "hyprland-toplevel-mapping-v1" true)
+protocolnew("${HYPRLAND_PROTOCOLS}/protocols" "hyprland-workspace-image-capture-source-v1" true)
 
 protocolnew("staging/tearing-control" "tearing-control-v1" false)
 protocolnew("staging/fractional-scale" "fractional-scale-v1" false)

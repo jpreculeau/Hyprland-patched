@@ -1,9 +1,11 @@
 #include "PluginAPI.hpp"
+#include "../helpers/MiscFunctions.hpp"
+#include "../desktop/view/window/WindowPresentation.hpp"
 #include "../Compositor.hpp"
-#include "../debug/HyprCtl.hpp"
+#include "../ipc/s1/S1.hpp"
 #include "../plugins/PluginSystem.hpp"
 #include "../managers/eventLoop/EventLoopManager.hpp"
-#include "../config/legacy/ConfigManager.hpp"
+#include "../config/ConfigManager.hpp"
 #include "../config/lua/ConfigManager.hpp"
 #include "../notification/NotificationOverlay.hpp"
 #include "../layout/target/Target.hpp"
@@ -27,8 +29,8 @@ APICALL const char* __hyprland_api_get_hash() {
         return std::string{v.substr(0, v.find_last_of('.'))};
     };
 
-    static const std::string ver = (std::string{GIT_COMMIT_HASH} + "_aq_" + stripPatch(AQUAMARINE_VERSION) + "_hu_" + stripPatch(HYPRUTILS_VERSION) + "_hg_" +
-                                    stripPatch(HYPRGRAPHICS_VERSION) + "_hc_" + stripPatch(HYPRCURSOR_VERSION) + "_hlg_" + stripPatch(HYPRLANG_VERSION));
+    static const std::string ver = std::format("{}_aq_{}_hu_{}_hg_{}_hc_{}_hlg_{}", GIT_COMMIT_HASH, stripPatch(AQUAMARINE_VERSION), stripPatch(HYPRUTILS_VERSION),
+                                               stripPatch(HYPRGRAPHICS_VERSION), stripPatch(HYPRCURSOR_VERSION), stripPatch(HYPRLANG_VERSION));
 
     return ver.c_str();
 }
@@ -58,9 +60,9 @@ APICALL bool HyprlandAPI::unregisterCallback(HANDLE handle, SP<HOOK_CALLBACK_FN>
 
 APICALL std::string HyprlandAPI::invokeHyprctlCommand(const std::string& call, const std::string& args, const std::string& format) {
     if (args.empty())
-        return g_pHyprCtl->makeDynamicCall(format + "/" + call);
+        return IPC::Socket1::sock()->invoke(std::format("{}/{}", format, call));
     else
-        return g_pHyprCtl->makeDynamicCall(format + "/" + call + " " + args);
+        return IPC::Socket1::sock()->invoke(std::format("{}/{} {}", format, call, args));
 }
 
 APICALL bool HyprlandAPI::addLayout(HANDLE handle, const std::string& name, IHyprLayout* layout) {
@@ -138,20 +140,18 @@ APICALL bool HyprlandAPI::removeFunctionHook(HANDLE handle, CFunctionHook* hook)
     return g_pFunctionHookSystem->removeHook(hook);
 }
 
-APICALL bool HyprlandAPI::addWindowDecoration(HANDLE handle, PHLWINDOW pWindow, UP<IHyprWindowDecoration> pDecoration) {
+APICALL bool HyprlandAPI::addWindowDecoration(HANDLE handle, PHLWINDOW pWindow, SP<IHyprWindowDecoration>&& pDecoration) {
     auto* const PLUGIN = g_pPluginSystem->getPluginByHandle(handle);
 
     if (!PLUGIN)
         return false;
 
-    if (!validMapped(pWindow))
+    if (!validMapped(pWindow) || !pDecoration)
         return false;
 
     PLUGIN->m_registeredDecorations.push_back(pDecoration.get());
 
-    pWindow->addWindowDeco(std::move(pDecoration));
-
-    pWindow->layoutTarget()->recalc();
+    pWindow->presentation().addDecoration(std::move(pDecoration));
 
     return true;
 }
@@ -163,9 +163,9 @@ APICALL bool HyprlandAPI::removeWindowDecoration(HANDLE handle, IHyprWindowDecor
         return false;
 
     for (auto const& w : Desktop::windowState()->windows()) {
-        for (auto const& d : w->m_windowDecorations) {
+        for (auto const& d : w->presentation().decorations()) {
             if (d.get() == pDecoration) {
-                w->removeWindowDeco(pDecoration);
+                w->presentation().removeDecoration(pDecoration);
                 return true;
             }
         }
@@ -175,53 +175,15 @@ APICALL bool HyprlandAPI::removeWindowDecoration(HANDLE handle, IHyprWindowDecor
 }
 
 APICALL bool HyprlandAPI::addConfigValue(HANDLE handle, const std::string& name, const Hyprlang::CConfigValue& value) {
-    auto* const PLUGIN = g_pPluginSystem->getPluginByHandle(handle);
-
-    if (Config::mgr()->type() != Config::CONFIG_LEGACY)
-        return false;
-
-    if (!g_pPluginSystem->m_allowConfigVars)
-        return false;
-
-    if (!PLUGIN)
-        return false;
-
-    if (!name.starts_with("plugin:"))
-        return false;
-
-    Config::Legacy::mgr()->addPluginConfigVar(handle, name, value);
-    return true;
+    return false;
 }
 
 APICALL bool HyprlandAPI::addConfigKeyword(HANDLE handle, const std::string& name, Hyprlang::PCONFIGHANDLERFUNC fn, Hyprlang::SHandlerOptions opts) {
-    auto* const PLUGIN = g_pPluginSystem->getPluginByHandle(handle);
-
-    if (Config::mgr()->type() != Config::CONFIG_LEGACY)
-        return false;
-
-    if (!g_pPluginSystem->m_allowConfigVars)
-        return false;
-
-    if (!PLUGIN)
-        return false;
-
-    Config::Legacy::mgr()->addPluginKeyword(handle, name, fn, opts);
-    return true;
+    return false;
 }
 
 APICALL Hyprlang::CConfigValue* HyprlandAPI::getConfigValue(HANDLE handle, const std::string& name) {
-    auto* const PLUGIN = g_pPluginSystem->getPluginByHandle(handle);
-
-    if (Config::mgr()->type() != Config::CONFIG_LEGACY)
-        return nullptr;
-
-    if (!PLUGIN)
-        return nullptr;
-
-    if (name.starts_with("plugin:"))
-        return Config::Legacy::mgr()->getHyprlangConfigValuePtr(name.substr(7), "plugin");
-
-    return Config::Legacy::mgr()->getHyprlangConfigValuePtr(name);
+    return nullptr;
 }
 
 APICALL void* HyprlandAPI::getFunctionAddressFromSignature(HANDLE handle, const std::string& sig) {
@@ -234,44 +196,15 @@ APICALL void* HyprlandAPI::getFunctionAddressFromSignature(HANDLE handle, const 
 }
 
 APICALL bool HyprlandAPI::addDispatcher(HANDLE handle, const std::string& name, std::function<void(std::string)> handler) {
-    auto* const PLUGIN = g_pPluginSystem->getPluginByHandle(handle);
-
-    if (!PLUGIN)
-        return false;
-
-    PLUGIN->m_registeredDispatchers.push_back(name);
-
-    g_pKeybindManager->m_dispatchers[name] = [handler](std::string arg1) -> SDispatchResult {
-        handler(arg1);
-        return {};
-    };
-
-    return true;
+    return false;
 }
 
 APICALL bool HyprlandAPI::addDispatcherV2(HANDLE handle, const std::string& name, std::function<SDispatchResult(std::string)> handler) {
-    auto* const PLUGIN = g_pPluginSystem->getPluginByHandle(handle);
-
-    if (!PLUGIN)
-        return false;
-
-    PLUGIN->m_registeredDispatchers.push_back(name);
-
-    g_pKeybindManager->m_dispatchers[name] = handler;
-
-    return true;
+    return false;
 }
 
 APICALL bool HyprlandAPI::removeDispatcher(HANDLE handle, const std::string& name) {
-    auto* const PLUGIN = g_pPluginSystem->getPluginByHandle(handle);
-
-    if (!PLUGIN)
-        return false;
-
-    std::erase_if(g_pKeybindManager->m_dispatchers, [&](const auto& other) { return other.first == name; });
-    std::erase_if(PLUGIN->m_registeredDispatchers, [&](const auto& other) { return other == name; });
-
-    return true;
+    return false;
 }
 
 APICALL bool addNotificationV2(HANDLE handle, const std::unordered_map<std::string, std::any>& data) {
@@ -354,11 +287,13 @@ APICALL std::vector<SFunctionMatch> HyprlandAPI::findFunctionsByName(HANDLE hand
 #endif
 
 #ifdef __clang__
-    static const auto SYMBOLS          = execAndGet(("llvm-nm -D -j \"" + FPATH.string() + "\"").c_str());
-    static const auto SYMBOLSDEMANGLED = execAndGet(("llvm-nm -D -j --demangle \"" + FPATH.string() + "\"").c_str());
+    static const auto SYMBOLS          = execAndGet(std::format("llvm-nm -D -j \"{}\"", FPATH.string()).c_str());
+    static const auto SYMBOLSDEMANGLED = execAndGet(std::format("llvm-nm -D -j --demangle \"{}\"", FPATH.string()).c_str());
+    constexpr auto    NM_BINARY        = "llvm-nm";
 #else
-    static const auto SYMBOLS          = execAndGet(("nm -D -j \"" + FPATH.string() + "\"").c_str());
-    static const auto SYMBOLSDEMANGLED = execAndGet(("nm -D -j --demangle=auto \"" + FPATH.string() + "\"").c_str());
+    static const auto SYMBOLS          = execAndGet(std::format("nm -D -j \"{}\"", FPATH.string()).c_str());
+    static const auto SYMBOLSDEMANGLED = execAndGet(std::format("nm -D -j --demangle=auto \"{}\"", FPATH.string()).c_str());
+    constexpr auto    NM_BINARY        = "nm";
 #endif
 
     auto demangledFromID = [&](size_t id) -> std::string {
@@ -380,13 +315,7 @@ APICALL std::vector<SFunctionMatch> HyprlandAPI::findFunctionsByName(HANDLE hand
     };
 
     if (SYMBOLS.empty()) {
-        Log::logger->log(Log::ERR, R"(Unable to search for function "{}": no symbols found in binary (is "{}" in path?))", name,
-#ifdef __clang__
-                         "llvm-nm"
-#else
-                         "nm"
-#endif
-        );
+        LOG(Log::ERR, R"(Unable to search for function "{}": no symbols found in binary (is "{}" in path?))", name, NM_BINARY);
         return {};
     }
 
@@ -419,18 +348,18 @@ APICALL SVersionInfo HyprlandAPI::getHyprlandVersion(HANDLE handle) {
     return {GIT_COMMIT_HASH, GIT_TAG, GIT_DIRTY != std::string(""), GIT_BRANCH, GIT_COMMIT_MESSAGE, GIT_COMMITS};
 }
 
-APICALL SP<SHyprCtlCommand> HyprlandAPI::registerHyprCtlCommand(HANDLE handle, SHyprCtlCommand cmd) {
+APICALL SP<IPC::Socket1::SCommand> HyprlandAPI::registerHyprCtlCommand(HANDLE handle, IPC::Socket1::SCommand cmd) {
     auto* const PLUGIN = g_pPluginSystem->getPluginByHandle(handle);
 
     if (!PLUGIN)
         return nullptr;
 
-    auto PTR = g_pHyprCtl->registerCommand(cmd);
+    auto PTR = IPC::Socket1::sock()->registerCommand(std::move(cmd));
     PLUGIN->m_registeredHyprctlCommands.push_back(PTR);
     return PTR;
 }
 
-APICALL bool HyprlandAPI::unregisterHyprCtlCommand(HANDLE handle, SP<SHyprCtlCommand> cmd) {
+APICALL bool HyprlandAPI::unregisterHyprCtlCommand(HANDLE handle, SP<IPC::Socket1::SCommand> cmd) {
 
     auto* const PLUGIN = g_pPluginSystem->getPluginByHandle(handle);
 
@@ -438,7 +367,7 @@ APICALL bool HyprlandAPI::unregisterHyprCtlCommand(HANDLE handle, SP<SHyprCtlCom
         return false;
 
     std::erase_if(PLUGIN->m_registeredHyprctlCommands, [&](const auto& other) { return !other || other == cmd; });
-    g_pHyprCtl->unregisterCommand(cmd);
+    IPC::Socket1::sock()->unregisterCommand(cmd);
 
     return true;
 }
@@ -453,7 +382,7 @@ APICALL bool HyprlandAPI::addConfigValueV2(HANDLE handle, SP<Config::Values::IVa
 
     auto ret = Config::mgr()->registerPluginValue(handle, value);
     if (!ret) {
-        Log::logger->log(Log::ERR, "failed to register plugin value \"{}\": {}", value->name(), ret.error());
+        LOG(Log::ERR, "failed to register plugin value \"{}\": {}", value->name(), ret.error());
         return false;
     }
 
@@ -473,7 +402,7 @@ APICALL bool HyprlandAPI::addLuaFunction(HANDLE handle, const std::string& names
 
     auto ret = dynamicPointerCast<Config::Lua::CConfigManager>(WP<Config::IConfigManager>(Config::mgr()))->registerPluginLuaFunction(handle, namespace_, name, fn);
     if (!ret) {
-        Log::logger->log(Log::ERR, "failed to register lua plugin function {}.{}: {}", namespace_, name, ret.error());
+        LOG(Log::ERR, "failed to register lua plugin function {}.{}: {}", namespace_, name, ret.error());
         return false;
     }
 
@@ -491,7 +420,7 @@ APICALL bool HyprlandAPI::removeLuaFunction(HANDLE handle, const std::string& na
 
     auto ret = dynamicPointerCast<Config::Lua::CConfigManager>(WP<Config::IConfigManager>(Config::mgr()))->unregisterPluginLuaFunction(handle, namespace_, name);
     if (!ret) {
-        Log::logger->log(Log::ERR, "failed to unregister lua plugin function {}.{}: {}", namespace_, name, ret.error());
+        LOG(Log::ERR, "failed to unregister lua plugin function {}.{}: {}", namespace_, name, ret.error());
         return false;
     }
 
@@ -506,7 +435,7 @@ APICALL bool HyprlandAPI::addEvent(HANDLE handle, SP<Event::CEventBus::CCustomEv
 
     const auto ret = Event::bus()->addPluginEvent(event);
     if (!ret) {
-        Log::logger->log(Log::ERR, ret.error());
+        LOG(Log::ERR, ret.error());
         return false;
     }
 
@@ -521,7 +450,7 @@ APICALL bool HyprlandAPI::removeEvent(HANDLE handle, const std::string& name) {
 
     const auto ret = Event::bus()->removePluginEvent(name);
     if (!ret) {
-        Log::logger->log(Log::ERR, ret.error());
+        LOG(Log::ERR, ret.error());
         return false;
     }
 
