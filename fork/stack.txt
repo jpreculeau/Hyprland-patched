@@ -5,6 +5,7 @@
 wayland|https://gitlab.freedesktop.org/wayland/wayland.git|1.26.0
 wayland-protocols|https://gitlab.freedesktop.org/wayland/wayland-protocols.git|1.49
 libinput|https://gitlab.freedesktop.org/libinput/libinput.git|1.32.0
+hyprland-protocols|https://github.com/hyprwm/hyprland-protocols|latest
 hyprutils|https://github.com/hyprwm/hyprutils|latest
 hyprlang|https://github.com/hyprwm/hyprlang|latest
 hyprwire|https://github.com/hyprwm/hyprwire|latest

@@ -131,6 +131,7 @@ msn libinput -Dlua-plugins=disabled -Ddocumentation=false -Dtests=false -Ddebug-
     -Dudev-dir="$P/lib/udev"
 
 # --- hypr* (all linked against the same libhyprutils / toutes liées à la même libhyprutils)
+cmk hyprland-protocols   # Hyprland >= 0.57 needs >= 0.8.0, Debian 13 has 0.7.1 / Debian 13 : 0.7.1
 cmk hyprutils
 cmk hyprlang
 cmk hyprwire
