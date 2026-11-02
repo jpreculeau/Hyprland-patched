@@ -102,7 +102,7 @@ correctifs y sont déplacés et les deux branches poussées en force.
 
 | Script | Role / rôle |
 |---|---|
-| `sync.sh <clones>` | moves the patches onto the newest upstream release, regenerates `main`, pushes; stops on a conflict without pushing / déplace les correctifs sur la dernière version, s'arrête sans pousser en cas de conflit |
+| `sync.sh <clones>` | moves the patches onto the newest upstream release (or the newest vX.Y.* with `SYNC_SERIE_<clone dir>=X.Y`), regenerates `main`, pushes; stops on a conflict without pushing / déplace les correctifs sur la dernière version (ou la dernière vX.Y.* avec `SYNC_SERIE_<dossier>=X.Y`), s'arrête sans pousser en cas de conflit |
 | `build-stack.sh` | builds the whole stack (`stack.txt`, build dependencies: `build-deps.txt`) / compile la pile |
 | `package.sh` | builds in a private mount namespace (the installed stack is not touched) and makes the archive / compile à part et produit l'archive |
 | `release.sh <clones>` | `sync.sh`, then build and publish a release if this repository or aquamarine-patched changed (new releases of the other components are picked up by the next one) / publie si ce dépôt ou aquamarine-patched ont changé |

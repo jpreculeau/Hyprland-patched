@@ -15,6 +15,8 @@
 #
 # Usage: sync.sh [--no-push] <clone>...    remotes: "upstream" (hyprwm), "origin" (this repository)
 # Exit / sortie: 0 ok, 1 error in at least one clone / erreur dans au moins un clone, 2 usage.
+# Env: SYNC_SERIE_<clone directory name>=X.Y (optional) follows only vX.Y.* releases, e.g.
+# SYNC_SERIE_Hyprland=0.56 / ne suit que les versions vX.Y.* (facultatif).
 set -uo pipefail
 
 # This script lives in a clone it rebases: run from a copy, so that bash never reads a file
@@ -79,8 +81,19 @@ sync_one() {
     fi
 
     git checkout --quiet "$branch" || return 1
-    newest=$(git tag --list 'v[0-9]*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
-    [ -n "$newest" ] || { echo "$dir: no release tag / aucune étiquette de version" >&2; return 1; }
+    # SYNC_SERIE_<clone directory name>=X.Y (optional) pins the release series, e.g. while a new
+    # upstream series needs work before it can be followed / fige la série de versions suivie,
+    # p. ex. tant qu'une nouvelle série amont demande un chantier avant d'être suivie.
+    local serie_var serie pattern='^v[0-9]+\.[0-9]+\.[0-9]+$'
+    serie_var="SYNC_SERIE_$(basename "$dir" | tr -c '[:alnum:]_\n' '_')"
+    serie=${!serie_var:-}
+    if [ -n "$serie" ]; then
+        [[ $serie =~ ^[0-9]+\.[0-9]+$ ]] || { echo "$dir: $serie_var=$serie is not X.Y / n'est pas X.Y" >&2; return 1; }
+        pattern="^v${serie//./\\.}\\.[0-9]+\$"
+    fi
+    newest=$(git tag --list 'v[0-9]*' | grep -E "$pattern" | sort -V | tail -1)
+    [ -n "$newest" ] || { echo "$dir: no release tag${serie:+ in v$serie.*} / aucune étiquette de version" >&2; return 1; }
+    [ -z "$serie" ] || echo "$dir: release series pinned to $serie ($serie_var) / série figée"
     base_snap=$(find_snapshot "$branch")
     if [ -z "$base_snap" ]; then
         # first run: the branch sits on an upstream tag; put it on a snapshot of that tag
