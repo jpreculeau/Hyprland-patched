@@ -29,7 +29,8 @@ curl -fsSL https://github.com/jpreculeau/Hyprland-patched/releases/latest/downlo
   "Hyprland (patched)". Debian's Hyprland packages are not touched. /
   Installe toute la pile dans `/opt/hypr-stack`, ses dépendances avec apt, et une session de
   connexion « Hyprland (patched) ». Les paquets Hyprland de Debian ne sont pas touchés.
-- Config: `~/.config/hypr/hyprland-stack.conf` if present, else `~/.config/hypr/hyprland.conf`;
+- Config: `~/.config/hypr/hyprland-stack.lua` if present, else `~/.config/hypr/hyprland-stack.conf`
+  (before 0.57), else Hyprland's own lookup (`hyprland.lua`; from 0.57 on, Hyprland reads Lua only);
   optional hook `~/.config/hypr/hypr-stack-pre` run before Hyprland. / Config et crochet optionnel.
 - Update: run the same command (nothing is done if that release is already installed). /
   Mise à jour : relancer la même commande. Rollback / revenir à la pile précédente
@@ -106,6 +107,7 @@ correctifs y sont déplacés et les deux branches poussées en force.
 | `release.sh <clones>` | `sync.sh`, then build and publish a release if this repository or aquamarine-patched changed (new releases of the other components are picked up by the next one) / publie si ce dépôt ou aquamarine-patched ont changé |
 | `install.sh` | installs the latest release / installe la dernière version |
 | `sync_test.sh sync.sh`, `release_test.sh release.sh`, `package_test.sh package.sh` | tests on throwaway repositories, with a fake `gh` and `ldd` / tests sur dépôts jetables, faux `gh` et `ldd` |
+| `session_test.sh session/hypr-stack-session` | config passed to Hyprland and hook order, with a fake stack and `HOME` / config passée à Hyprland et ordre du crochet, fausse pile et faux `HOME` |
 
 Code assisted by an AI model (Claude); see the `Co-Authored-By` lines of each commit. /
 Code écrit avec l'aide d'un modèle d'IA (Claude) ; voir les lignes `Co-Authored-By` des commits.
