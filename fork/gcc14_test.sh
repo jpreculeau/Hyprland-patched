@@ -20,6 +20,9 @@ case_() {
 declare -A WANT
 case_ append_range 'std::vector<int> v{1}; std::vector<int> w{2, 3}; v.append_range(w); std::cout << v.size() << v[2] << "\n";' 33
 case_ insert_range 'std::vector<int> v{1, 4}; std::vector<int> w{2, 3}; v.insert_range(v.begin() + 1, w); std::cout << v[1] << v[2] << v[3] << "\n";' 234
+case_ visit '#include <variant>
+std::variant<int, std::string> v = 4; auto f = [](int k) { return k; };
+std::cout << v.visit([&](auto&& x) { if constexpr (std::is_same_v<std::decay_t<decltype(x)>, int>) return f((x)); else return 0; }) << "\n";' 4
 case_ subview 'std::string s = "abcdef"; size_t i = 2; std::cout << s.subview(i, 2) << "|" << s.subview(i + 1) << "\n";' 'cd|def'
 
 python3 "$FORK/gcc14-compat.py" "$T/src" > /dev/null

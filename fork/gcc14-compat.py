@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Rewrites C++23 append_range/insert_range calls (missing in libstdc++ 14) into an equivalent insert(), and
-C++26 string::subview(...) into std::string_view(...).substr(...).
+C++26 string::subview(...) into std::string_view(...).substr(...) and variant::visit(f) into std::visit(f, ...).
 Réécrit les appels C++23 append_range/insert_range (absents de libstdc++ 14) en insert() équivalent, et
-string::subview(...) (C++26) en std::string_view(...).substr(...).
+string::subview(...) et variant::visit(f) (C++26) en std::string_view(...).substr(...) et std::visit(f, ...).
 Usage: gcc14-compat.py <dir>...   Idempotent / idempotent (only touches the calls still present)."""
 import re, sys, pathlib
 
@@ -23,7 +23,7 @@ def split_top(args):  # split on the first top-level comma / découpe sur la pre
         elif c == ',' and depth == 0: return args[:k].strip(), args[k+1:].strip()
     return None, args.strip()
 
-PAT = re.compile(r'([A-Za-z_][\w\.\->]*)\s*\.\s*(append_range|insert_range)\s*\(')
+PAT = re.compile(r'([A-Za-z_][\w\.\->]*)\s*\.\s*(append_range|insert_range|visit)\s*\(')
 SUBVIEW = re.compile(r'([A-Za-z_][\w\.\->]*)\s*\.\s*subview\s*\(')
 
 def rewrite(src):
@@ -32,6 +32,9 @@ def rewrite(src):
         if m.start() < pos: continue
         lp = m.end() - 1; rp = match_paren(src, lp)
         obj, kind, args = m.group(1), m.group(2), src[lp+1:rp]
+        if kind == 'visit':  # member visit of a variant (C++26) / visit membre d'un variant
+            out.append(src[pos:m.start()]); out.append(f'std::visit({args}, {obj})'); pos = rp + 1; n += 1
+            continue
         if kind == 'append_range':
             where, rng = f'{obj}.end()', args.strip()
         else:
@@ -50,7 +53,7 @@ for root in sys.argv[1:]:
         if f.suffix not in ('.cpp', '.hpp', '.h', '.cc') or 'build-stack' in f.parts or 'subprojects' in f.parts:
             continue
         s = f.read_text(errors='surrogateescape')
-        if not any(w in s for w in ('append_range', 'insert_range', 'subview')): continue
+        if not any(w in s for w in ('append_range', 'insert_range', 'subview', '.visit(')): continue
         new, n = rewrite(s)
         if n:
             for h in ('<ranges>', '<string_view>'):
