@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
-"""Rewrites C++23 append_range/insert_range calls (missing in libstdc++ 14) into an equivalent insert().
-Réécrit les appels C++23 append_range/insert_range (absents de libstdc++ 14) en insert() équivalent.
+"""Rewrites C++23 append_range/insert_range calls (missing in libstdc++ 14) into an equivalent insert(), and
+C++26 string::subview(...) into std::string_view(...).substr(...).
+Réécrit les appels C++23 append_range/insert_range (absents de libstdc++ 14) en insert() équivalent, et
+string::subview(...) (C++26) en std::string_view(...).substr(...).
 Usage: gcc14-compat.py <dir>...   Idempotent / idempotent (only touches the calls still present)."""
 import re, sys, pathlib
 
@@ -22,6 +24,7 @@ def split_top(args):  # split on the first top-level comma / découpe sur la pre
     return None, args.strip()
 
 PAT = re.compile(r'([A-Za-z_][\w\.\->]*)\s*\.\s*(append_range|insert_range)\s*\(')
+SUBVIEW = re.compile(r'([A-Za-z_][\w\.\->]*)\s*\.\s*subview\s*\(')
 
 def rewrite(src):
     out, pos, n = [], 0, 0
@@ -37,7 +40,9 @@ def rewrite(src):
                 f'std::ranges::end(_hw_r)); }}()')
         out.append(src[pos:m.start()]); out.append(repl); pos = rp + 1; n += 1
     out.append(src[pos:])
-    return ''.join(out), n
+    # same arguments and result: a view of the substring / mêmes arguments, même résultat : une vue
+    new, k = SUBVIEW.subn(r'std::string_view(\1).substr(', ''.join(out))
+    return new, n + k
 
 total = 0
 for root in sys.argv[1:]:
@@ -45,9 +50,10 @@ for root in sys.argv[1:]:
         if f.suffix not in ('.cpp', '.hpp', '.h', '.cc') or 'build-stack' in f.parts or 'subprojects' in f.parts:
             continue
         s = f.read_text(errors='surrogateescape')
-        if 'append_range' not in s and 'insert_range' not in s: continue
+        if not any(w in s for w in ('append_range', 'insert_range', 'subview')): continue
         new, n = rewrite(s)
         if n:
-            if '#include <ranges>' not in new: new = '#include <ranges>\n' + new
+            for h in ('<ranges>', '<string_view>'):
+                if f'#include {h}' not in new: new = f'#include {h}\n' + new
             f.write_text(new, errors='surrogateescape'); total += n; print(f'{f}: {n}')
 print(f'gcc14-compat: {total} call(s) rewritten')

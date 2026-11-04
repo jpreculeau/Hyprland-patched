@@ -88,9 +88,10 @@ correctifs y sont déplacés et les deux branches poussées en force.
 - **GCC 14 compatibility (generated)** — `fork/gcc14.sh`: Debian's `#embed` workaround
   (`fork/embed.patch`, BSD-3-Clause, the Debian package's patch, itself from a PPA as its header
   says), `append_range`/`insert_range`
-  rewritten as `insert()`, a header for `string + string_view`, `ranges::starts_with/ends_with`
+  rewritten as `insert()`, `string::subview` as `string_view(…).substr`, a header for `string + string_view`, `ranges::starts_with/ends_with`
   and `std::format` of a vector (no effect with GCC 15+), a `static_cast` in `XWM.hpp`. /
-  Contournement Debian de `#embed`, réécriture d'`append_range`/`insert_range`, en-tête de
+  Contournement Debian de `#embed`, réécriture d'`append_range`/`insert_range` et de
+  `string::subview`, en-tête de
   compatibilité (sans effet avec GCC 15+), un `static_cast` dans `XWM.hpp`.
 - In the companion repository `aquamarine-patched` / dans le dépôt associé : the mgpu renderer of
   the primary GPU is not required, so a setup where it cannot be created (vc4 + v3d) no longer
@@ -108,6 +109,7 @@ correctifs y sont déplacés et les deux branches poussées en force.
 | `install.sh` | installs the latest release / installe la dernière version |
 | `sync_test.sh sync.sh`, `release_test.sh release.sh`, `package_test.sh package.sh` | tests on throwaway repositories, with a fake `gh` and `ldd` / tests sur dépôts jetables, faux `gh` et `ldd` |
 | `session_test.sh session/hypr-stack-session` | config passed to Hyprland and hook order, with a fake stack and `HOME` / config passée à Hyprland et ordre du crochet, fausse pile et faux `HOME` |
+| `gcc14_test.sh` | `gcc14-compat.py` rewrites, built with the system GCC / réécritures de `gcc14-compat.py`, compilées avec le GCC du système |
 
 Code assisted by an AI model (Claude); see the `Co-Authored-By` lines of each commit. /
 Code écrit avec l'aide d'un modèle d'IA (Claude) ; voir les lignes `Co-Authored-By` des commits.
