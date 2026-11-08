@@ -33,6 +33,11 @@ if(NOT HYPR_SHADER_GEN_RESULT EQUAL 0)
   )
 endif()
 
+execute_process(COMMAND xxd -i
+                INPUT_FILE ./example/hyprland.lua
+                OUTPUT_FILE ./src/config/lua/DefaultConfigBytes.hpp
+                WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
 find_package(PkgConfig REQUIRED)
 find_package(Python3 COMPONENTS Interpreter QUIET)
 
