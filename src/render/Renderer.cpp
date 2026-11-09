@@ -2049,7 +2049,12 @@ void IHyprRenderer::beginBackdropScope(CRenderContext& ctx, SP<SBackdropScope> s
             auto                         state = ctx.saveDrawState();
             CScopeGuard                  restoreBlend{[this, savedBlend] { blend(savedBlend); }};
             bindFB(ctx, backdrop);
-            ctx.m_data.damage             = scope->damage;
+
+            CRegion copyDamage = scope->damage.copy();
+            expandBlurDamage(copyDamage);
+            copyDamage.intersect(CBox{{}, ctx.m_data.pMonitor->m_transformedSize});
+
+            ctx.m_data.damage             = copyDamage;
             ctx.m_data.renderModif        = {};
             ctx.m_data.useNearestNeighbor = true;
             blend(false);
@@ -2275,10 +2280,8 @@ void IHyprRenderer::renderMonitor(PHLMONITOR pMonitor, bool commit) {
     if (!*PDAMAGEBLINK)
         damageBlinkCleanup = 0;
 
-    if (*PDEBUGOVERLAY == 1) {
+    if (*PDEBUGOVERLAY == 1)
         renderStart = std::chrono::high_resolution_clock::now();
-        Debug::overlay()->frameData(pMonitor);
-    }
 
     if (!g_pCompositor->m_sessionActive)
         return;
@@ -2311,6 +2314,9 @@ void IHyprRenderer::renderMonitor(PHLMONITOR pMonitor, bool commit) {
         pMonitor->m_pendingFrame = true;
         return;
     }
+
+    if (*PDEBUGOVERLAY == 1)
+        Debug::overlay()->frameData(pMonitor);
 
     // tearing and DS first
     bool       shouldTear              = pMonitor->updateTearing();

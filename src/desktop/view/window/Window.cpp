@@ -812,16 +812,23 @@ std::unordered_map<std::string, std::string> CWindow::getEnv() {
     return results;
 }
 
+void CWindow::markUrgent() {
+    if (Desktop::focusState()->window() == m_self)
+        return;
+
+    m_hints |= WINDOW_HINT_URGENT;
+
+    IPC::Socket2::sock()->postEvent({.event = "urgent", .data = std::format("{:x}", rc<uintptr_t>(this))});
+    Event::bus()->m_events.window.urgent.emit(m_self.lock());
+}
+
 void CWindow::activate(bool force) {
     if (Desktop::focusState()->window() == m_self)
         return;
 
     static auto PFOCUSONACTIVATE = CConfigValue<Config::INTEGER>("misc:focus_on_activate");
 
-    m_hints |= WINDOW_HINT_URGENT;
-
-    IPC::Socket2::sock()->postEvent({.event = "urgent", .data = std::format("{:x}", rc<uintptr_t>(this))});
-    Event::bus()->m_events.window.urgent.emit(m_self.lock());
+    markUrgent();
 
     if (!force && (!m_ruleApplicator->focusOnActivate().valueOr(*PFOCUSONACTIVATE) || m_requestSuppression.activateFocusOnly || m_requestSuppression.activate))
         return;
@@ -871,7 +878,9 @@ void CWindow::requestClientFullscreen(const SClientFullscreenRequest& request) {
         if (m_isMapped) {
             if (request.fullscreen.value()) {
                 static auto PCLIENTREQFSHANDLER = CConfigValue<Config::BOOL>("binds:client_requested_fs_uses_layout_handler");
-                Fullscreen::controller()->setFullscreenMode(m_self.lock(), std::nullopt, Fullscreen::FSMODE_FULLSCREEN, *PCLIENTREQFSHANDLER);
+                // Keep ternery as `? nullopt : false` because the "layout allowed" means handler is not contrained, so let controller decide if there's an applicable layout handler
+                Fullscreen::controller()->setFullscreenMode(m_self.lock(), std::nullopt, Fullscreen::FSMODE_FULLSCREEN,
+                                                            (*PCLIENTREQFSHANDLER) ? std::nullopt : std::optional<bool>(false));
             } else {
                 // If window's fullscreen, un-fullscreen it. if it's not FS, let it keep its current FS mode
                 if (Fullscreen::controller()->getFullscreenModes(m_self.lock()).client == Fullscreen::FSMODE_FULLSCREEN)
@@ -888,7 +897,7 @@ void CWindow::requestClientFullscreen(const SClientFullscreenRequest& request) {
             if (!BACKEND_REQUEST || !m_fullscreenPolicy->consumeExpectedMaximizeEcho(request.maximized.value())) {
                 const auto WINDOW       = m_self.lock();
                 const auto CLIENT_STATE = Fullscreen::controller()->getFullscreenModes(WINDOW).client;
-                if (request.maximized.value())
+                if (request.maximized.value() && CLIENT_STATE != Fullscreen::FSMODE_FULLSCREEN)
                     Fullscreen::controller()->setFullscreenMode(WINDOW, std::nullopt, Fullscreen::FSMODE_MAXIMIZED);
                 else if (CLIENT_STATE == Fullscreen::FSMODE_MAXIMIZED)
                     Fullscreen::controller()->setFullscreenMode(WINDOW, std::nullopt, Fullscreen::FSMODE_NONE);
