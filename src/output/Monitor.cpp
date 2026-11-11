@@ -1,3 +1,4 @@
+#include <string_view>
 #include "Monitor.hpp"
 #include "../desktop/view/window/WindowEffectsController.hpp"
 #include "../desktop/view/window/WindowPresentation.hpp"
@@ -705,7 +706,7 @@ bool CMonitor::applyMonitorRule(Config::CMonitorRule&& pMonitorRule) {
         std::ranges::sort(sortedModes, sortFunc);
         if (sortedModes.size() > 3)
             sortedModes.erase(sortedModes.begin() + 3, sortedModes.end());
-        requestedModes.insert_range(requestedModes.end(), sortedModes | std::views::reverse);
+        [&]{ auto&& _hw_r = sortedModes | std::views::reverse; requestedModes.insert(requestedModes.end(), std::ranges::begin(_hw_r), std::ranges::end(_hw_r)); }();
     };
 
     // last fallback is always preferred mode
