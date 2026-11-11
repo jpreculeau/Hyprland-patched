@@ -16,7 +16,8 @@ elif ! git apply --reverse --check "$F/embed.patch" 2>/dev/null; then
     exit 1
 fi
 
-# 2. append_range / insert_range (C++23, libstdc++ 15) -> insert()
+# 2. append_range / insert_range (C++23, libstdc++ 15) -> insert(); string::subview, variant::visit (C++26)
+#    -> string_view(…).substr, std::visit
 python3 "$F/gcc14-compat.py" src hyprctl hyprpm start
 
 # 3. string + string_view, ranges::starts_with/ends_with, std::format of a vector

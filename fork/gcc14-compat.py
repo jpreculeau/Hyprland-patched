@@ -53,7 +53,7 @@ for root in sys.argv[1:]:
         if f.suffix not in ('.cpp', '.hpp', '.h', '.cc') or 'build-stack' in f.parts or 'subprojects' in f.parts:
             continue
         s = f.read_text(errors='surrogateescape')
-        if not any(w in s for w in ('append_range', 'insert_range', 'subview', '.visit(')): continue
+        if not any(w in s for w in ('append_range', 'insert_range', 'subview', 'visit')): continue
         new, n = rewrite(s)
         if n:
             for h in ('<ranges>', '<string_view>'):

@@ -32,6 +32,11 @@ curl -fsSL https://github.com/jpreculeau/Hyprland-patched/releases/latest/downlo
 - Config: `~/.config/hypr/hyprland-stack.lua` if present, else `~/.config/hypr/hyprland-stack.conf`
   (before 0.57), else Hyprland's own lookup (`hyprland.lua`; from 0.57 on, Hyprland reads Lua only);
   optional hook `~/.config/hypr/hypr-stack-pre` run before Hyprland. / Config et crochet optionnel.
+- **Upgrading to 0.57**: Hyprland 0.57 reads Lua configs only (a `hyprland-stack.conf` would be
+  read as Lua and fail). Write `~/.config/hypr/hyprland-stack.lua` before you
+  update; Hyprland 0.55 and 0.56 read it too. If the session fails, roll back (below). /
+  **Passage à 0.57** : Hyprland 0.57 ne lit plus que du Lua. Écrire `hyprland-stack.lua` avant la
+  mise à jour (0.55 et 0.56 le lisent aussi) ; en cas d'échec, revenir en arrière (ci-dessous).
 - Update: run the same command (nothing is done if that release is already installed). /
   Mise à jour : relancer la même commande. Rollback / revenir à la pile précédente
   (gardée dans `/opt/hypr-stack.prev`) :
@@ -73,6 +78,10 @@ correctifs y sont déplacés et les deux branches poussées en force.
   follows the layout of the physical keyboards. / Option par périphérique : le clavier virtuel
   d'un bureau à distance garde le keymap de la config et suit la disposition des claviers
   physiques.
+  ```lua
+  hl.device({ name = "hl-virtual-keyboard-wayvnc", follow_layout = true })
+  ```
+  Before 0.57, in hyprlang / avant 0.57, en hyprlang :
   ```
   device {
       name = hl-virtual-keyboard-wayvnc
@@ -87,11 +96,11 @@ correctifs y sont déplacés et les deux branches poussées en force.
   l'option s'applique à la reconnexion du client.
 - **GCC 14 compatibility (generated)** — `fork/gcc14.sh`: Debian's `#embed` workaround
   (`fork/embed.patch`, BSD-3-Clause, the Debian package's patch, itself from a PPA as its header
-  says), `append_range`/`insert_range`
-  rewritten as `insert()`, `string::subview` as `string_view(…).substr`, a header for `string + string_view`, `ranges::starts_with/ends_with`
-  and `std::format` of a vector (no effect with GCC 15+), a `static_cast` in `XWM.hpp`. /
-  Contournement Debian de `#embed`, réécriture d'`append_range`/`insert_range` et de
-  `string::subview`, en-tête de
+  says), `append_range`/`insert_range` rewritten as `insert()`, `string::subview` as
+  `string_view(…).substr`, the member `variant::visit` as `std::visit`, a header for
+  `string + string_view`, `ranges::starts_with/ends_with` and `std::format` of a vector (no effect with GCC 15+), a `static_cast` in `XWM.hpp`. /
+  Contournement Debian de `#embed`, réécriture d'`append_range`/`insert_range`, de
+  `string::subview` et de la méthode `variant::visit`, en-tête de
   compatibilité (sans effet avec GCC 15+), un `static_cast` dans `XWM.hpp`.
 - In the companion repository `aquamarine-patched` / dans le dépôt associé : the mgpu renderer of
   the primary GPU is not required, so a setup where it cannot be created (vc4 + v3d) no longer
@@ -102,7 +111,7 @@ correctifs y sont déplacés et les deux branches poussées en force.
 
 | Script | Role / rôle |
 |---|---|
-| `sync.sh <clones>` | moves the patches onto the newest upstream release (or the newest vX.Y.* with `SYNC_SERIE_<clone dir>=X.Y`), regenerates `main`, pushes; stops on a conflict without pushing / déplace les correctifs sur la dernière version (ou la dernière vX.Y.* avec `SYNC_SERIE_<dossier>=X.Y`), s'arrête sans pousser en cas de conflit |
+| `sync.sh <clones>` | moves the patches onto the newest upstream release (or the newest vX.Y.* with `SYNC_SERIE_<clone dir>=X.Y`, refused if older than the branch's release), regenerates `main`, pushes; stops on a conflict without pushing / déplace les correctifs sur la dernière version (ou la dernière vX.Y.* avec `SYNC_SERIE_<dossier>=X.Y`, refusée si plus ancienne que celle de la branche), s'arrête sans pousser en cas de conflit |
 | `build-stack.sh` | builds the whole stack (`stack.txt`, build dependencies: `build-deps.txt`) / compile la pile |
 | `package.sh` | builds in a private mount namespace (the installed stack is not touched) and makes the archive / compile à part et produit l'archive |
 | `release.sh <clones>` | `sync.sh`, then build and publish a release if this repository or aquamarine-patched changed (new releases of the other components are picked up by the next one) / publie si ce dépôt ou aquamarine-patched ont changé |
