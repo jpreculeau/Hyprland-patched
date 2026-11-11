@@ -113,6 +113,13 @@ upstream_commit "sed -i 's/^e later\$/e fix/' f.txt" fix v1.1.1
 check "pinned series: follows v1.1.x: exit 0" "$(SYNC_SERIE_work=1.1 run work)" 0
 check "pinned series: on v1.1.1, not v2.0.0" "$(snap_tag main)" v1.1.1
 check "pinned series: malformed value refused" "$(SYNC_SERIE_work=1.1.0 "$S" work 2>&1 | grep -c 'is not X.Y')" 1
+# a series older than the branch's release would move the patches back: refused, nothing changes
+# une série plus ancienne que la version de la branche ferait reculer les correctifs : refus
+P=$(g -C work rev-parse main)
+check "pinned series older than the base: exit 1" "$(SYNC_SERIE_work=1.0 run work)" 1
+check "pinned series older than the base: main kept" "$(g -C work rev-parse main)" "$P"
+check "pinned series older than the base: still on v1.1.1" "$(snap_tag main)" v1.1.1
+check "pinned series older than the base: nothing pushed" "$(g -C fork.git rev-parse main)" "$P"
 
 echo "RESULT sync: $((total - fails))/$total"
 exit $((fails > 0))

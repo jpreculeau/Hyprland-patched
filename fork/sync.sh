@@ -16,7 +16,8 @@
 # Usage: sync.sh [--no-push] <clone>...    remotes: "upstream" (hyprwm), "origin" (this repository)
 # Exit / sortie: 0 ok, 1 error in at least one clone / erreur dans au moins un clone, 2 usage.
 # Env: SYNC_SERIE_<clone directory name>=X.Y (optional) follows only vX.Y.* releases, e.g.
-# SYNC_SERIE_Hyprland=0.56 / ne suit que les versions vX.Y.* (facultatif).
+# SYNC_SERIE_Hyprland=0.56 / ne suit que les versions vX.Y.* (facultatif). A series older than the
+# branch's release is refused / une série plus ancienne que celle de la branche est refusée.
 set -uo pipefail
 
 # This script lives in a clone it rebases: run from a copy, so that bash never reads a file
@@ -105,6 +106,12 @@ sync_one() {
         base_snap=$new_snap
     fi
     base_tag=$(git log -1 --format=%B "$base_snap" | sed -n 's/^Upstream-Tag: //p')
+    # never move the patches back to an older release (a series pinned below the branch's one)
+    # ne jamais ramener les correctifs sur une version plus ancienne (série figée sous celle de la branche)
+    if [ "$base_tag" != "$newest" ] && [ "$(printf '%s\n' "$base_tag" "$newest" | sort -V | tail -1)" = "$base_tag" ]; then
+        echo "$dir: $newest is older than $base_tag${serie:+ ($serie_var=$serie)} / plus ancienne que la base : refus" >&2
+        return 1
+    fi
     if [ "$base_tag" != "$newest" ]; then
         new_snap=$(snapshot "$newest" "$base_snap") || return 1
         if ! git rebase --quiet --onto "$new_snap" "$base_snap" "$branch"; then
