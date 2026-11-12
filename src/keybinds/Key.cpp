@@ -1,3 +1,5 @@
+#include <string_view>
+#include <ranges>
 #include "Key.hpp"
 
 #include <hyprutils/string/Numeric.hpp>
@@ -77,7 +79,7 @@ bool CKey::matches(KeyEvent ev, xkb_state*) const {
     if (empty())
         return false;
 
-    return ev.visit([&](auto&& value) {
+    return std::visit([&](auto&& value) {
         using T = std::decay_t<decltype(value)>;
         if constexpr (std::is_same_v<T, SKeysymPattern>)
             return m_sym && value.sym == *m_sym;
@@ -89,7 +91,7 @@ bool CKey::matches(KeyEvent ev, xkb_state*) const {
             return m_event && value.ev == *m_event;
         else
             return false;
-    });
+    }, ev);
 }
 
 bool CKey::matches(const SResolvedKey& key) const {

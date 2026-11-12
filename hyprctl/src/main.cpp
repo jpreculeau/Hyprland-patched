@@ -1,3 +1,4 @@
+#include "../../fork/gcc14-shim.hpp"
 #include <re2/re2.h>
 
 #include <cctype>
