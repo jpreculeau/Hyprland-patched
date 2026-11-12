@@ -38,11 +38,18 @@ curl -fsSL https://github.com/jpreculeau/Hyprland-patched/releases/latest/downlo
   **Passage à 0.57** : Hyprland 0.57 ne lit plus que du Lua. Écrire `hyprland-stack.lua` avant la
   mise à jour (0.55 et 0.56 le lisent aussi) ; en cas d'échec, revenir en arrière (ci-dessous).
 - Update: run the same command (nothing is done if that release is already installed). /
-  Mise à jour : relancer la même commande. Rollback / revenir à la pile précédente
-  (gardée dans `/opt/hypr-stack.prev`) :
+  Mise à jour : relancer la même commande. Older stacks are kept in `/opt/hypr-stack.prev.<date>`
+  (about 90 MB each, listed with their total at each update; delete them when no longer needed). /
+  Les anciennes piles sont gardées dans `/opt/hypr-stack.prev.<date>` (environ 90 Mo chacune,
+  listées à chaque mise à jour ; les supprimer quand elles ne servent plus).
+  Rollback / revenir à la pile précédente (gardée dans `/opt/hypr-stack.prev`) :
   `curl -fsSL https://github.com/jpreculeau/Hyprland-patched/releases/latest/download/install.sh | sh -s -- --rollback`
-- Runtime dependencies are installed with apt, which is never allowed to remove a package. /
-  Les dépendances sont installées avec apt, sans jamais retirer de paquet.
+- Only missing runtime dependencies are installed with apt, which is never allowed to remove a
+  package; installed ones are not upgraded unless a missing one requires it. If Hyprland then does
+  not run with your libraries, update them (`sudo apt update && sudo apt full-upgrade`) and run the
+  command again. / Seules les dépendances absentes sont installées avec apt, sans jamais retirer
+  de paquet ; celles déjà présentes ne sont mises à jour que si une dépendance absente l'exige.
+  Si Hyprland ne démarre pas avec vos bibliothèques, les mettre à jour, puis relancer.
 - Screen sharing needs Debian's `xdg-desktop-portal-hyprland` package (Raspberry Pi OS, or
   trixie-backports) for its service files; a drop-in then uses this stack's portal in its session
   and Debian's elsewhere. / Le partage d'écran demande le paquet Debian `xdg-desktop-portal-hyprland`
@@ -117,6 +124,7 @@ correctifs y sont déplacés et les deux branches poussées en force.
 | `release.sh <clones>` | `sync.sh`, then build and publish a release if this repository or aquamarine-patched changed (new releases of the other components are picked up by the next one) / publie si ce dépôt ou aquamarine-patched ont changé |
 | `install.sh` | installs the latest release / installe la dernière version |
 | `sync_test.sh sync.sh`, `release_test.sh release.sh`, `package_test.sh package.sh` | tests on throwaway repositories, with a fake `gh` and `ldd` / tests sur dépôts jetables, faux `gh` et `ldd` |
+| `install_test.sh install.sh` | apt asked for missing packages only, older stacks kept, with fake `sudo` and `dpkg-query` / apt pour les seuls paquets absents, anciennes piles gardées, faux `sudo` et `dpkg-query` |
 | `session_test.sh session/hypr-stack-session` | config passed to Hyprland and hook order, with a fake stack and `HOME` / config passée à Hyprland et ordre du crochet, fausse pile et faux `HOME` |
 | `gcc14_test.sh` | `gcc14-compat.py` rewrites, built with the system GCC / réécritures de `gcc14-compat.py`, compilées avec le GCC du système |
 
